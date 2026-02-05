@@ -19,13 +19,15 @@ class PointnetLSTMActionClassification(nn.Module):
         # LSTM for temporal modeling
         self.lstm = nn.LSTM(
             input_size = 1024,
-            hidden_size = 512,
-            num_layers = 2,
+            hidden_size = 256,
+            num_layers = 1,
             batch_first = True
         )
 
         # Final classifier
-        self.fc = nn.Linear(512, self.num_classes)
+        self.attn = nn.Linear(256, 1)
+        self.dropout = nn.Dropout(0.5)
+        self.fc = nn.Linear(256, self.num_classes)
 
     def forward(self, stacked):
         # DEBUG: shape + config checks
@@ -52,6 +54,11 @@ class PointnetLSTMActionClassification(nn.Module):
         feats = torch.stack(seq_feats, dim = 1) # [B, T, 1024]
 
         lstm_output, _ = self.lstm(feats)
-        last = lstm_output[:, -1, :]
+        attn_weights = torch.softmax(
+            self.attn(lstm_output), dim=1
+        )
 
-        return self.fc(last)
+        pooled = (attn_weights * lstm_output).sum(dim=1)
+
+        pooled = self.dropout(pooled)
+        return self.fc(pooled)

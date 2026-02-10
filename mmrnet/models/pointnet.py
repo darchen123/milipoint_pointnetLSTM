@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch_geometric.transforms as T
 from torch_geometric.nn import MLP, PointNetConv, fps, global_max_pool, radius
+from torch_scatter import scatter_max
 
 class SAModule(torch.nn.Module):
     def __init__(self, ratio, r, nn):
@@ -77,10 +78,15 @@ class PointNet(torch.nn.Module):
         npoints = data.shape[1]
         x = data.reshape((batchsize * npoints, 3))
         batch = torch.arange(batchsize).repeat_interleave(npoints).to(x.device)
+
         sa0_out = (x, x, batch)
         sa1_out = self.sa1_module(*sa0_out)
         sa2_out = self.sa2_module(*sa1_out)
         sa3_out = self.sa3_module(*sa2_out)
+
         x, pos, batch = sa3_out
+
+        x, _ = scatter_max(x, batch, dim=0)
+        
         return x  # [B, 1024]
 
